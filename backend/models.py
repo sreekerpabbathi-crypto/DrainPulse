@@ -42,6 +42,10 @@ class TaskCompleteRequest(BaseModel):
     post_condition: str = Field(..., pattern="^(Cleared|Repaired|Re-inspection Required)$")
     notes: Optional[str] = None
 
+class TaskStatusUpdateRequest(BaseModel):
+    status: str = Field(..., pattern="^(Scheduled|In Progress|Cancelled)$")
+    notes: Optional[str] = None
+
 class InspectionCreate(BaseModel):
     drain_id: str
     inspector_name: str = Field(..., min_length=2, max_length=100)

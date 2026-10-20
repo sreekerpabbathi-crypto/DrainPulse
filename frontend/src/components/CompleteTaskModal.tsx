@@ -50,7 +50,7 @@ export const CompleteTaskModal: React.FC<CompleteTaskModalProps> = ({ task, onCl
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <CheckCircle2 size={22} color="#10b981" />
+            <CheckCircle2 size={22} color="var(--success)" />
             <div>
               <h2 style={{ fontSize: '1.2rem', fontWeight: 800 }}>Record Task Completion & Field Sign-off</h2>
               <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>

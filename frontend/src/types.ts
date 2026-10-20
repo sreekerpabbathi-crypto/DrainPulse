@@ -147,6 +147,9 @@ export interface DashboardStats {
     total: number;
     degraded_or_blocked: number;
     operational: number;
+    under_maintenance?: number;
+    degraded?: number;
+    blocked?: number;
   };
   reports: {
     total: number;
@@ -159,6 +162,7 @@ export interface DashboardStats {
     total_tasks: number;
     active_tasks: number;
     completed_tasks: number;
+    cancelled_tasks?: number;
     total_waste_removed_kg: number;
   };
 }

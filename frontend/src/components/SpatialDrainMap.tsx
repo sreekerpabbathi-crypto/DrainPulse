@@ -33,10 +33,10 @@ export const SpatialDrainMap: React.FC<SpatialDrainMapProps> = ({ drains, onSele
 
   const getPriorityColor = (tier?: string) => {
     switch (tier?.toLowerCase()) {
-      case 'critical': return '#f43f5e';
-      case 'high': return '#f59e0b';
-      case 'moderate': return '#0ea5e9';
-      default: return '#10b981';
+      case 'critical': return '#dc2626';
+      case 'high': return '#d97706';
+      case 'moderate': return '#2563eb';
+      default: return '#16a34a';
     }
   };
 
@@ -47,7 +47,7 @@ export const SpatialDrainMap: React.FC<SpatialDrainMapProps> = ({ drains, onSele
       {/* Map Control Bar */}
       <div style={{ padding: '12px 16px', background: 'var(--bg-surface-elevated)', borderBottom: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Navigation size={16} color="#0ea5e9" />
+          <Navigation size={16} color="var(--primary)" />
           <span style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-main)' }}>
             Metropolitan Drainage Catchment Topology
           </span>
@@ -71,7 +71,7 @@ export const SpatialDrainMap: React.FC<SpatialDrainMapProps> = ({ drains, onSele
       </div>
 
       {/* SVG Canvas Map */}
-      <div style={{ width: '100%', height: '520px', background: '#090d16', position: 'relative', overflow: 'hidden' }}>
+      <div className="spatial-map-canvas-container" style={{ position: 'relative', background: '#f8fafc', overflow: 'hidden' }}>
         <svg
           viewBox="0 0 800 500"
           style={{ width: '100%', height: '100%', display: 'block' }}
@@ -80,10 +80,10 @@ export const SpatialDrainMap: React.FC<SpatialDrainMapProps> = ({ drains, onSele
           {/* Subtle Grid Lines */}
           <defs>
             <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-              <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(255,255,255,0.03)" strokeWidth="1" />
+              <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(0,0,0,0.05)" strokeWidth="1" />
             </pattern>
             <radialGradient id="hubGlow" cx="50%" cy="50%" r="50%">
-              <stop offset="0%" stopColor="rgba(14, 165, 233, 0.15)" />
+              <stop offset="0%" stopColor="rgba(37, 99, 235, 0.05)" />
               <stop offset="100%" stopColor="transparent" />
             </radialGradient>
           </defs>
@@ -95,32 +95,32 @@ export const SpatialDrainMap: React.FC<SpatialDrainMapProps> = ({ drains, onSele
           <path
             d="M 120 420 Q 300 380 400 250 T 680 120"
             fill="none"
-            stroke="rgba(14, 165, 233, 0.15)"
+            stroke="rgba(37, 99, 235, 0.15)"
             strokeWidth="8"
             strokeLinecap="round"
           />
           <path
             d="M 220 100 Q 380 180 400 250 T 620 420"
             fill="none"
-            stroke="rgba(6, 182, 212, 0.12)"
+            stroke="rgba(14, 165, 233, 0.12)"
             strokeWidth="6"
             strokeLinecap="round"
           />
 
           {/* Zone Region Labels */}
-          <text x="240" y="80" fill="rgba(255,255,255,0.2)" fontSize="12" fontWeight="700" letterSpacing="2">
+          <text x="240" y="80" fill="rgba(100, 116, 139, 0.35)" fontSize="12" fontWeight="700" letterSpacing="2">
             NORTH INDUSTRIAL BASIN
           </text>
-          <text x="400" y="220" fill="rgba(255,255,255,0.25)" fontSize="13" fontWeight="800" letterSpacing="2">
+          <text x="400" y="220" fill="rgba(100, 116, 139, 0.4)" fontSize="13" fontWeight="800" letterSpacing="2">
             CENTRAL MARKET DISTRICT
           </text>
-          <text x="560" y="380" fill="rgba(255,255,255,0.2)" fontSize="12" fontWeight="700" letterSpacing="2">
+          <text x="560" y="380" fill="rgba(100, 116, 139, 0.35)" fontSize="12" fontWeight="700" letterSpacing="2">
             WESTSIDE IT CORRIDOR
           </text>
-          <text x="140" y="360" fill="rgba(255,255,255,0.2)" fontSize="12" fontWeight="700" letterSpacing="2">
+          <text x="140" y="360" fill="rgba(100, 116, 139, 0.35)" fontSize="12" fontWeight="700" letterSpacing="2">
             SOUTHERN RESIDENTIAL
           </text>
-          <text x="600" y="80" fill="rgba(255,255,255,0.2)" fontSize="12" fontWeight="700" letterSpacing="2">
+          <text x="600" y="80" fill="rgba(100, 116, 139, 0.35)" fontSize="12" fontWeight="700" letterSpacing="2">
             RIVERFRONT ESPLANADE
           </text>
 
@@ -171,7 +171,7 @@ export const SpatialDrainMap: React.FC<SpatialDrainMapProps> = ({ drains, onSele
                   cx={cx}
                   cy={cy}
                   r={isSelected ? 10 : (isHovered ? 8 : 6.5)}
-                  fill="#0b1120"
+                  fill="#ffffff"
                   stroke={color}
                   strokeWidth={isSelected ? 3 : 2}
                 />
@@ -188,9 +188,9 @@ export const SpatialDrainMap: React.FC<SpatialDrainMapProps> = ({ drains, onSele
                 <text
                   x={cx}
                   y={cy + 16}
-                  fill={isHovered || isSelected ? '#ffffff' : 'rgba(255,255,255,0.6)'}
+                  fill={isHovered || isSelected ? 'var(--text-main)' : 'var(--text-secondary)'}
                   fontSize={isHovered ? "11" : "9.5"}
-                  fontWeight={isHovered || isSelected ? "700" : "500"}
+                  fontWeight={isHovered || isSelected ? "700" : "600"}
                   textAnchor="middle"
                   fontFamily="var(--font-mono)"
                 >
@@ -208,19 +208,19 @@ export const SpatialDrainMap: React.FC<SpatialDrainMapProps> = ({ drains, onSele
               position: 'absolute',
               bottom: 16,
               left: 16,
-              background: 'rgba(15, 23, 42, 0.95)',
+              background: 'rgba(255, 255, 255, 0.98)',
               backdropFilter: 'blur(12px)',
               border: '1px solid var(--border-medium)',
               borderRadius: 'var(--radius-md)',
               padding: '12px 16px',
               maxWidth: 320,
-              boxShadow: 'var(--shadow-lg)',
+              boxShadow: 'var(--shadow-md)',
               pointerEvents: 'none',
               animation: 'fadeIn 0.15s ease'
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-              <span style={{ fontWeight: 800, color: '#38bdf8', fontFamily: 'var(--font-mono)' }}>
+              <span style={{ fontWeight: 800, color: 'var(--text-link)', fontFamily: 'var(--font-mono)' }}>
                 {hoveredDrain.code}
               </span>
               <span className={`badge badge-prio-${hoveredDrain.priority_tier?.toLowerCase()}`}>
@@ -245,7 +245,7 @@ export const SpatialDrainMap: React.FC<SpatialDrainMapProps> = ({ drains, onSele
             position: 'absolute',
             top: 14,
             right: 14,
-            background: 'rgba(15, 23, 42, 0.85)',
+            background: 'rgba(255, 255, 255, 0.95)',
             backdropFilter: 'blur(8px)',
             border: '1px solid var(--border-subtle)',
             borderRadius: 'var(--radius-md)',
@@ -253,24 +253,25 @@ export const SpatialDrainMap: React.FC<SpatialDrainMapProps> = ({ drains, onSele
             fontSize: '0.75rem',
             display: 'flex',
             flexDirection: 'column',
-            gap: 6
+            gap: 6,
+            boxShadow: 'var(--shadow-sm)'
           }}
         >
           <div style={{ fontWeight: 700, color: 'var(--text-main)', marginBottom: 2 }}>Risk Priority Tiers</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#f43f5e' }} />
+            <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#dc2626' }} />
             <span>Critical (&ge; 65 pts)</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#f59e0b' }} />
+            <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#d97706' }} />
             <span>High (45 - 64 pts)</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#0ea5e9' }} />
+            <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#2563eb' }} />
             <span>Moderate (25 - 44 pts)</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#10b981' }} />
+            <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#16a34a' }} />
             <span>Low (0 - 24 pts)</span>
           </div>
         </div>

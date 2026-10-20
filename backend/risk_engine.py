@@ -26,12 +26,11 @@ def calculate_drain_risk(drain_id: str, conn: sqlite3.Connection, current_dt: Op
     """
     Deterministically computes the explainable maintenance prioritization score for a drain.
     
-    Formula Breakdown (Max 90 points without external rain gauge):
+    Formula Breakdown (Max 90 points):
     1. Recent Blockage Reports: Up to 30 pts
     2. Previous Waterlogging History: Up to 25 pts
     3. Overdue Inspection Status: Up to 20 pts (Missing data = Unknown / Needing Inspection)
     4. Latest Field Observation: Up to 15 pts
-    5. Rainfall: Excluded (Up to 10 only if real data source available; explained explicitly)
     """
     if current_dt is None:
         current_dt = datetime.now(timezone.utc)
@@ -174,15 +173,6 @@ def calculate_drain_risk(drain_id: str, conn: sqlite3.Connection, current_dt: Op
             field_evidence = f"Field crew observed nominal flow ({blockage_pct:.0f}% blockage), structural condition: '{structural.capitalize()}'."
 
     # ---------------------------------------------------------
-    # Factor 5: Rainfall Contribution (up to 10 pts)
-    # Rainfall contributes up to 10 only if a real, explicitly identified data source is available;
-    # otherwise exclude it and explain its absence.
-    # ---------------------------------------------------------
-    rainfall_score = 0.0
-    rainfall_max = 0.0 # Excluded from active denominator
-    rainfall_evidence = "Rainfall data excluded: No physical municipal telemetry rain gauge or certified weather sensor feed connected. Factor excluded from score calculation to prevent ungrounded speculation."
-
-    # ---------------------------------------------------------
     # Total Score Calculation (Out of 90 max active points)
     # ---------------------------------------------------------
     total_score = round(blockage_score + waterlogging_score + inspection_score + field_score, 1)
@@ -197,6 +187,44 @@ def calculate_drain_risk(drain_id: str, conn: sqlite3.Connection, current_dt: Op
         priority_tier = "Moderate"
     else:
         priority_tier = "Low"
+
+    # Persist or update snapshot into relational risk_assessments table
+    rsk_id = f"RSK-{drain_id}"
+    rainfall_score = 0.0
+    rainfall_evidence = "Excluded from evaluation."
+    cursor.execute("""
+        INSERT INTO risk_assessments (
+            id, drain_id, calculated_at, total_score, max_possible_score,
+            priority_tier, recent_blockage_score, recent_blockage_evidence,
+            waterlogging_history_score, waterlogging_evidence,
+            inspection_overdue_score, inspection_overdue_evidence,
+            field_observation_score, field_observation_evidence,
+            rainfall_score, rainfall_evidence, is_simulated
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+            calculated_at = excluded.calculated_at,
+            total_score = excluded.total_score,
+            max_possible_score = excluded.max_possible_score,
+            priority_tier = excluded.priority_tier,
+            recent_blockage_score = excluded.recent_blockage_score,
+            recent_blockage_evidence = excluded.recent_blockage_evidence,
+            waterlogging_history_score = excluded.waterlogging_history_score,
+            waterlogging_evidence = excluded.waterlogging_evidence,
+            inspection_overdue_score = excluded.inspection_overdue_score,
+            inspection_overdue_evidence = excluded.inspection_overdue_evidence,
+            field_observation_score = excluded.field_observation_score,
+            field_observation_evidence = excluded.field_observation_evidence,
+            rainfall_score = excluded.rainfall_score,
+            rainfall_evidence = excluded.rainfall_evidence;
+    """, (
+        rsk_id, drain_id, current_dt.isoformat(), total_score, max_score,
+        priority_tier, blockage_score, blockage_evidence,
+        waterlogging_score, waterlogging_evidence,
+        inspection_score, inspection_evidence,
+        field_score, field_evidence,
+        rainfall_score, rainfall_evidence,
+        drain["is_simulated"]
+    ))
 
     return {
         "drain_id": drain_id,
@@ -244,15 +272,6 @@ def calculate_drain_risk(drain_id: str, conn: sqlite3.Connection, current_dt: Op
                 "evidence": field_evidence,
                 "field_status": field_status,
                 "status": "Nominal" if field_score == 0 else ("Warning" if field_score < 11 else "Critical")
-            },
-            {
-                "name": "Real-time Rainfall Telemetry",
-                "score": rainfall_score,
-                "max_score": rainfall_max,
-                "weight_label": "Excluded (0 pts)",
-                "evidence": rainfall_evidence,
-                "status": "Excluded",
-                "is_excluded": True
             }
         ]
     }

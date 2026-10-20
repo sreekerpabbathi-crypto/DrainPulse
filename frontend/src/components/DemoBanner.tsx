@@ -16,9 +16,9 @@ export const DemoBanner: React.FC<DemoBannerProps> = ({ stats }) => {
           SIMULATED DEMO DATA
         </span>
         <span>
-          Preloaded 30 drain assets, 45 reports & 20 tasks.
+          Baseline seed: 30 drain assets, 45 reports & 20 tasks.
           {stats && stats.genuine_civilian_count > 0 ? (
-            <strong style={{ color: '#34d399', marginLeft: 8 }}>
+            <strong style={{ color: '#16a34a', marginLeft: 8 }}>
               ({stats.genuine_civilian_count} genuine user interaction{stats.genuine_civilian_count > 1 ? 's' : ''} recorded)
             </strong>
           ) : (

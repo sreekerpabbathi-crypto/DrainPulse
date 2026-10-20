@@ -14,7 +14,7 @@ from backend.seed_data import seed_database_if_empty
 from backend.risk_engine import calculate_drain_risk
 from backend.models import (
     ReportCreate, ReportVerifyRequest, TaskCreate,
-    TaskCompleteRequest, InspectionCreate
+    TaskCompleteRequest, TaskStatusUpdateRequest, InspectionCreate
 )
 
 from contextlib import asynccontextmanager
@@ -66,12 +66,24 @@ def get_dashboard_stats():
     with get_db_connection() as conn:
         cursor = conn.cursor()
         
-        # Drain counts
-        cursor.execute("SELECT COUNT(*) as total FROM drains;")
-        total_drains = cursor.fetchone()["total"]
-
-        cursor.execute("SELECT COUNT(*) as blocked FROM drains WHERE current_status IN ('Blocked', 'Degraded');")
-        degraded_drains = cursor.fetchone()["blocked"]
+        # Drain counts with truthful status breakdown
+        cursor.execute("""
+            SELECT 
+                COUNT(*) as total,
+                SUM(CASE WHEN current_status = 'Operational' THEN 1 ELSE 0 END) as operational,
+                SUM(CASE WHEN current_status = 'Under Maintenance' THEN 1 ELSE 0 END) as under_maintenance,
+                SUM(CASE WHEN current_status = 'Degraded' THEN 1 ELSE 0 END) as degraded,
+                SUM(CASE WHEN current_status = 'Blocked' THEN 1 ELSE 0 END) as blocked,
+                SUM(CASE WHEN current_status IN ('Blocked', 'Degraded') THEN 1 ELSE 0 END) as degraded_or_blocked
+            FROM drains;
+        """)
+        drain_counts = cursor.fetchone()
+        total_drains = drain_counts["total"] or 0
+        operational_drains = drain_counts["operational"] or 0
+        under_maintenance_drains = drain_counts["under_maintenance"] or 0
+        degraded_drains = drain_counts["degraded"] or 0
+        blocked_drains = drain_counts["blocked"] or 0
+        degraded_or_blocked = drain_counts["degraded_or_blocked"] or 0
 
         # Reports
         cursor.execute("SELECT COUNT(*) as total FROM reports;")
@@ -86,12 +98,20 @@ def get_dashboard_stats():
         cursor.execute("SELECT COUNT(*) as genuine FROM reports WHERE is_simulated = 0;")
         genuine_reports = cursor.fetchone()["genuine"]
 
-        # Tasks
-        cursor.execute("SELECT COUNT(*) as total, SUM(CASE WHEN status != 'Completed' THEN 1 ELSE 0 END) as active, SUM(CASE WHEN status = 'Completed' THEN 1 ELSE 0 END) as completed FROM maintenance_tasks;")
+        # Tasks: Active tasks are Scheduled or In Progress only (Cancelled and Completed are inactive)
+        cursor.execute("""
+            SELECT 
+                COUNT(*) as total,
+                SUM(CASE WHEN status IN ('Scheduled', 'In Progress') THEN 1 ELSE 0 END) as active,
+                SUM(CASE WHEN status = 'Completed' THEN 1 ELSE 0 END) as completed,
+                SUM(CASE WHEN status = 'Cancelled' THEN 1 ELSE 0 END) as cancelled
+            FROM maintenance_tasks;
+        """)
         task_row = cursor.fetchone()
         total_tasks = task_row["total"] or 0
         active_tasks = task_row["active"] or 0
         completed_tasks = task_row["completed"] or 0
+        cancelled_tasks = task_row["cancelled"] or 0
 
         # Total waste removed
         cursor.execute("SELECT SUM(waste_removed_kg) as total_waste FROM maintenance_records;")
@@ -101,8 +121,11 @@ def get_dashboard_stats():
         return {
             "drains": {
                 "total": total_drains,
-                "degraded_or_blocked": degraded_drains,
-                "operational": total_drains - degraded_drains
+                "operational": operational_drains,
+                "under_maintenance": under_maintenance_drains,
+                "degraded": degraded_drains,
+                "blocked": blocked_drains,
+                "degraded_or_blocked": degraded_or_blocked
             },
             "reports": {
                 "total": total_reports,
@@ -115,6 +138,7 @@ def get_dashboard_stats():
                 "total_tasks": total_tasks,
                 "active_tasks": active_tasks,
                 "completed_tasks": completed_tasks,
+                "cancelled_tasks": cancelled_tasks,
                 "total_waste_removed_kg": round(total_waste_kg, 1)
             }
         }
@@ -457,6 +481,39 @@ def create_maintenance_task(task_in: TaskCreate):
 
     return get_task(task_id)
 
+@app.patch("/api/tasks/{task_id}/status")
+def update_task_status(task_id: str, req: TaskStatusUpdateRequest):
+    """
+    Update lifecycle status of a task (e.g. Scheduled -> In Progress or Cancelled).
+    """
+    now_iso = datetime.now(timezone.utc).isoformat()
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM maintenance_tasks WHERE id = ?;", (task_id,))
+        task = cursor.fetchone()
+        if not task:
+            raise HTTPException(status_code=404, detail="Maintenance task not found")
+        if task["status"] == "Completed":
+            raise HTTPException(status_code=400, detail="Cannot alter status of an already completed task.")
+
+        cursor.execute("UPDATE maintenance_tasks SET status = ? WHERE id = ?;", (req.status, task_id))
+
+        if req.status == "In Progress":
+            cursor.execute("UPDATE drains SET current_status = 'Under Maintenance' WHERE id = ?;", (task["drain_id"],))
+
+        audit_id = f"AUD-{uuid.uuid4().hex[:6].upper()}"
+        cursor.execute("""
+            INSERT INTO audit_events (
+                id, entity_type, entity_id, action, actor_role, actor_name, details, timestamp
+            ) VALUES (?, 'task', ?, 'STATUS_UPDATED', 'officer', 'Maintenance Controller', ?, ?);
+        """, (
+            audit_id, task_id,
+            f"Task {task_id} status updated from {task['status']} to {req.status}. {req.notes or ''}".strip(),
+            now_iso
+        ))
+
+    return get_task(task_id)
+
 @app.post("/api/tasks/{task_id}/complete")
 def complete_maintenance_task(task_id: str, req: TaskCompleteRequest):
     """
@@ -602,6 +659,9 @@ def record_inspection(ins_in: InspectionCreate):
             SET last_inspection_date = ?, current_status = ?
             WHERE id = ?;
         """, (ins_in.inspection_date, new_status, ins_in.drain_id))
+
+        # Recalculate and persist updated risk assessment snapshot for this drain
+        calculate_drain_risk(ins_in.drain_id, conn)
 
         # Log audit event
         audit_id = f"AUD-{uuid.uuid4().hex[:6].upper()}"

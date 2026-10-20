@@ -1,18 +1,24 @@
 import React from 'react';
-import { Waves, ShieldAlert, UserCheck, Activity } from 'lucide-react';
+import { ShieldAlert, UserCheck, Activity, ArrowLeft } from 'lucide-react';
 
 interface HeaderProps {
   currentRole: 'civilian' | 'officer';
   onRoleChange: (role: 'civilian' | 'officer') => void;
   systemHealthy: boolean;
+  onNavigateToLanding?: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ currentRole, onRoleChange, systemHealthy }) => {
+export const Header: React.FC<HeaderProps> = ({ currentRole, onRoleChange, systemHealthy, onNavigateToLanding }) => {
   return (
     <header className="navbar">
-      <div className="brand-section">
+      <div
+        className="brand-section"
+        style={{ cursor: onNavigateToLanding ? 'pointer' : 'default' }}
+        onClick={onNavigateToLanding}
+        title={onNavigateToLanding ? "Back to DrainPulse Public Home" : undefined}
+      >
         <div className="brand-icon">
-          <Waves size={24} color="#ffffff" />
+          <img src="/logo-icon.png" alt="DrainPulse Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
         </div>
         <div>
           <h1 className="brand-title">DrainPulse</h1>
@@ -21,7 +27,20 @@ export const Header: React.FC<HeaderProps> = ({ currentRole, onRoleChange, syste
       </div>
 
       <div className="role-switcher-container">
-        <div className="badge" style={{ background: 'rgba(255,255,255,0.05)', color: systemHealthy ? '#34d399' : '#f87171', border: '1px solid var(--border-subtle)' }}>
+        {onNavigateToLanding && (
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            onClick={onNavigateToLanding}
+            style={{ fontSize: '12.5px', padding: '6px 14px', borderRadius: '8px' }}
+            title="Return to Public Landing Page"
+          >
+            <ArrowLeft size={14} />
+            Public Home
+          </button>
+        )}
+
+        <div className="badge" style={{ background: systemHealthy ? '#E8F7EE' : '#FDECEC', color: systemHealthy ? '#16A34A' : '#DC2626', border: '1px solid transparent' }}>
           <Activity size={12} />
           {systemHealthy ? 'API Active' : 'API Connecting...'}
         </div>

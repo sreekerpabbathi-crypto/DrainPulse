@@ -65,7 +65,7 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <Wrench size={20} color="#0ea5e9" />
+            <Wrench size={20} color="var(--primary)" />
             <h2 style={{ fontSize: '1.2rem', fontWeight: 800 }}>Dispatch Maintenance Work Order</h2>
           </div>
           <button className="modal-close-btn" onClick={onClose} aria-label="Close dialog">
@@ -96,7 +96,7 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
               ))}
             </select>
             {sourceReportId && (
-              <div className="form-hint" style={{ color: '#38bdf8' }}>
+              <div className="form-hint" style={{ color: 'var(--text-link)' }}>
                 Linked to Source Report: {sourceReportId}
               </div>
             )}

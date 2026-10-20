@@ -16,7 +16,7 @@ export const VerifyReportModal: React.FC<VerifyReportModalProps> = ({
 }) => {
   const [status, setStatus] = useState<'Verified' | 'Rejected' | 'Resolved'>('Verified');
   const [verifiedBy, setVerifiedBy] = useState('Officer K. Ramanathan (Zone Supt.)');
-  const [targetDrainId, setTargetDrainId] = useState(report.drain_id || (drains[0]?.id || ''));
+  const [targetDrainId, setTargetDrainId] = useState(report.drain_id || '');
   const [notes, setNotes] = useState(
     report.status === 'Verified'
       ? (report.verification_notes || 'Confirmed significant blockage during physical field patrol.')
@@ -32,6 +32,11 @@ export const VerifyReportModal: React.FC<VerifyReportModalProps> = ({
       return;
     }
 
+    if (status === 'Verified' && !targetDrainId) {
+      setError('Please associate a municipal drain asset to verify this incident.');
+      return;
+    }
+
     try {
       setLoading(true);
       setError(null);
@@ -39,7 +44,7 @@ export const VerifyReportModal: React.FC<VerifyReportModalProps> = ({
         status,
         verification_notes: notes.trim(),
         verified_by: verifiedBy.trim(),
-        target_drain_id: targetDrainId || undefined
+        target_drain_id: targetDrainId ? targetDrainId : undefined
       });
       onReportVerified();
 
@@ -62,7 +67,7 @@ export const VerifyReportModal: React.FC<VerifyReportModalProps> = ({
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <ShieldCheck size={22} color="#0ea5e9" />
+            <ShieldCheck size={22} color="var(--primary)" />
             <div>
               <h2 style={{ fontSize: '1.2rem', fontWeight: 800 }}>Officer Review & Report Verification</h2>
               <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
@@ -83,7 +88,7 @@ export const VerifyReportModal: React.FC<VerifyReportModalProps> = ({
         )}
 
         {/* Civilian Report Summary Box */}
-        <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', padding: 14, marginBottom: 18 }}>
+        <div style={{ background: 'var(--bg-main)', border: '1px solid var(--border-medium)', borderRadius: 'var(--radius-md)', padding: 14, marginBottom: 18 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
             <span className="badge badge-simulated" style={{ fontSize: '0.72rem' }}>
               {report.category}
@@ -144,13 +149,16 @@ export const VerifyReportModal: React.FC<VerifyReportModalProps> = ({
             </div>
 
             <div className="form-group">
-              <label className="form-label">Associated Municipal Drain Asset</label>
+              <label className="form-label">
+                Associated Municipal Drain Asset {status === 'Rejected' ? '(Optional for rejection)' : ''}
+              </label>
               <select
                 value={targetDrainId}
                 onChange={(e) => setTargetDrainId(e.target.value)}
                 style={{ width: '100%' }}
-                required
+                required={status !== 'Rejected'}
               >
+                <option value="">{status === 'Rejected' ? 'None (Unmapped / Not a valid drainage issue)' : '-- Select Drain Asset --'}</option>
                 {drains.map((d) => (
                   <option key={d.id} value={d.id}>
                     {d.code} — {d.name} ({d.zone})

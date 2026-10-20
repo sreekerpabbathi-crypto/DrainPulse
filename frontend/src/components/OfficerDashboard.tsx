@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import {
   ShieldAlert, CheckCircle2, Wrench,
-  MapPin, Gauge, Clock, Layers, RefreshCw, Scale
+  MapPin, Gauge, Clock, Layers, RefreshCw, Scale,
+  AlertTriangle, XCircle, X
 } from 'lucide-react';
 import type { Drain, Report, MaintenanceTask, MaintenanceRecord, AuditEvent, DashboardStats } from '../types';
 import { api } from '../api';
@@ -32,8 +33,15 @@ export const OfficerDashboard: React.FC<OfficerDashboardProps> = ({ stats, drain
   const [zoneFilter, setZoneFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [prioFilter, setPrioFilter] = useState('all');
-  const [reportStatusFilter, setReportStatusFilter] = useState<'all' | 'Submitted' | 'Verified' | 'Resolved'>('Submitted');
+  const [reportStatusFilter, setReportStatusFilter] = useState<'all' | 'Submitted' | 'Verified' | 'Resolved' | 'Rejected'>('Submitted');
   const [reportGenuineFilter, setReportGenuineFilter] = useState<'all' | 'genuine' | 'simulated'>('all');
+
+  // Task Filter and Action States
+  const [taskStatusFilter, setTaskStatusFilter] = useState<'all' | 'Scheduled' | 'In Progress' | 'Cancelled' | 'Completed'>('all');
+  const [taskSearch, setTaskSearch] = useState('');
+  const [cancellingTask, setCancellingTask] = useState<MaintenanceTask | null>(null);
+  const [taskActionError, setTaskActionError] = useState<string | null>(null);
+  const [taskActionSuccess, setTaskActionSuccess] = useState<string | null>(null);
 
   // Modals state
   const [selectedDrainForDetail, setSelectedDrainForDetail] = useState<string | null>(null);
@@ -81,6 +89,35 @@ export const OfficerDashboard: React.FC<OfficerDashboardProps> = ({ stats, drain
     onRefreshAll();
   };
 
+  const handleStartTask = async (taskId: string) => {
+    try {
+      setTaskActionError(null);
+      await api.updateTaskStatus(taskId, 'In Progress');
+      setTaskActionSuccess(`Work order ${taskId} is now In Progress.`);
+      setTimeout(() => setTaskActionSuccess(null), 4000);
+      fetchDashboardData();
+      onRefreshAll();
+    } catch (err: any) {
+      console.error('Failed to update task status', err);
+      setTaskActionError(err.message || 'Failed to update task status');
+    }
+  };
+
+  const handleCancelTask = async (task: MaintenanceTask) => {
+    try {
+      setTaskActionError(null);
+      await api.updateTaskStatus(task.id, 'Cancelled', 'Task cancelled by officer authorization.');
+      setCancellingTask(null);
+      setTaskActionSuccess(`Work order ${task.id} has been cancelled.`);
+      setTimeout(() => setTaskActionSuccess(null), 4000);
+      fetchDashboardData();
+      onRefreshAll();
+    } catch (err: any) {
+      console.error('Failed to cancel task', err);
+      setTaskActionError(err.message || 'Failed to cancel task.');
+    }
+  };
+
   // Filtered Drains
   const filteredDrains = drains.filter((d) => {
     if (zoneFilter !== 'all' && d.zone !== zoneFilter) return false;
@@ -106,6 +143,22 @@ export const OfficerDashboard: React.FC<OfficerDashboardProps> = ({ stats, drain
     return true;
   });
 
+  // Filtered Tasks
+  const filteredTasks = tasks.filter((t) => {
+    if (taskStatusFilter !== 'all' && t.status !== taskStatusFilter) return false;
+    if (taskSearch.trim()) {
+      const q = taskSearch.toLowerCase();
+      const titleMatch = t.title.toLowerCase().includes(q);
+      const descMatch = t.description.toLowerCase().includes(q);
+      const drainCodeMatch = (t.drain_code || '').toLowerCase().includes(q);
+      const drainNameMatch = (t.drain_name || '').toLowerCase().includes(q);
+      const crewMatch = (t.assigned_crew || '').toLowerCase().includes(q);
+      const idMatch = t.id.toLowerCase().includes(q);
+      return titleMatch || descMatch || drainCodeMatch || drainNameMatch || crewMatch || idMatch;
+    }
+    return true;
+  });
+
   return (
     <div>
       {/* Top Stat Cards Grid */}
@@ -113,18 +166,22 @@ export const OfficerDashboard: React.FC<OfficerDashboardProps> = ({ stats, drain
         <div className="stat-card">
           <div className="stat-card-header">
             <span className="stat-title">Registered Drains</span>
-            <Layers size={18} color="#0ea5e9" />
+            <Layers size={18} color="#2563eb" />
           </div>
           <div className="stat-value">{stats?.drains.total || 30}</div>
           <div className="stat-desc">
-            <span style={{ color: '#f43f5e', fontWeight: 700 }}>{stats?.drains.degraded_or_blocked || 0} Blocked/Degraded</span> • {stats?.drains.operational || 0} Operational
+            <span style={{ color: '#16a34a', fontWeight: 700 }}>{stats?.drains.operational ?? 0} Operational</span>
+            {stats?.drains.under_maintenance ? (
+              <span> • <strong style={{ color: '#2563eb' }}>{stats.drains.under_maintenance} Under Maint.</strong></span>
+            ) : null}
+            <span> • <span style={{ color: '#dc2626', fontWeight: 700 }}>{stats?.drains.degraded_or_blocked ?? 0} Blocked/Degraded</span></span>
           </div>
         </div>
 
         <div className="stat-card">
           <div className="stat-card-header">
             <span className="stat-title">Pending Verification</span>
-            <Clock size={18} color="#f59e0b" />
+            <Clock size={18} color="#d97706" />
           </div>
           <div className="stat-value">{stats?.reports.pending_verification || 0}</div>
           <div className="stat-desc">
@@ -135,20 +192,20 @@ export const OfficerDashboard: React.FC<OfficerDashboardProps> = ({ stats, drain
         <div className="stat-card">
           <div className="stat-card-header">
             <span className="stat-title">Active Crew Dispatches</span>
-            <Wrench size={18} color="#38bdf8" />
+            <Wrench size={18} color="#2563eb" />
           </div>
-          <div className="stat-value">{stats?.maintenance.active_tasks || 0}</div>
+          <div className="stat-value">{stats?.maintenance.active_tasks ?? 0}</div>
           <div className="stat-desc">
-            {stats?.maintenance.completed_tasks || 0} tasks successfully completed
+            {stats?.maintenance.completed_tasks ?? 0} completed • {stats?.maintenance.cancelled_tasks ?? 0} cancelled
           </div>
         </div>
 
         <div className="stat-card">
           <div className="stat-card-header">
             <span className="stat-title">Solid Waste Cleared</span>
-            <Scale size={18} color="#10b981" />
+            <Scale size={18} color="#16a34a" />
           </div>
-          <div className="stat-value" style={{ color: '#34d399' }}>
+          <div className="stat-value" style={{ color: '#16a34a' }}>
             {stats?.maintenance.total_waste_removed_kg ? `${stats.maintenance.total_waste_removed_kg.toLocaleString()} kg` : '0 kg'}
           </div>
           <div className="stat-desc">
@@ -158,11 +215,11 @@ export const OfficerDashboard: React.FC<OfficerDashboardProps> = ({ stats, drain
       </div>
 
       {/* Officer Dashboard Navigation Tabs */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-subtle)', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+      <div className="officer-dashboard-nav">
+        <div className="officer-dashboard-tabs">
           <button
             type="button"
-            className={`btn ${activeTab === 'drains' ? 'btn-primary' : 'btn-secondary'}`}
+            className={`officer-tab-btn ${activeTab === 'drains' ? 'active' : ''}`}
             onClick={() => setActiveTab('drains')}
           >
             <Gauge size={16} />
@@ -170,7 +227,7 @@ export const OfficerDashboard: React.FC<OfficerDashboardProps> = ({ stats, drain
           </button>
           <button
             type="button"
-            className={`btn ${activeTab === 'reports' ? 'btn-primary' : 'btn-secondary'}`}
+            className={`officer-tab-btn ${activeTab === 'reports' ? 'active' : ''}`}
             onClick={() => setActiveTab('reports')}
           >
             <Clock size={16} />
@@ -178,15 +235,15 @@ export const OfficerDashboard: React.FC<OfficerDashboardProps> = ({ stats, drain
           </button>
           <button
             type="button"
-            className={`btn ${activeTab === 'tasks' ? 'btn-primary' : 'btn-secondary'}`}
+            className={`officer-tab-btn ${activeTab === 'tasks' ? 'active' : ''}`}
             onClick={() => setActiveTab('tasks')}
           >
             <Wrench size={16} />
-            Maintenance Work Orders ({tasks.filter(t => t.status !== 'Completed').length} Active)
+            Maintenance Work Orders ({tasks.length > 0 ? tasks.filter(t => t.status === 'Scheduled' || t.status === 'In Progress').length : (stats?.maintenance.active_tasks ?? 0)} Active)
           </button>
           <button
             type="button"
-            className={`btn ${activeTab === 'map' ? 'btn-primary' : 'btn-secondary'}`}
+            className={`officer-tab-btn ${activeTab === 'map' ? 'active' : ''}`}
             onClick={() => setActiveTab('map')}
           >
             <MapPin size={16} />
@@ -194,7 +251,7 @@ export const OfficerDashboard: React.FC<OfficerDashboardProps> = ({ stats, drain
           </button>
           <button
             type="button"
-            className={`btn ${activeTab === 'history' ? 'btn-primary' : 'btn-secondary'}`}
+            className={`officer-tab-btn ${activeTab === 'history' ? 'active' : ''}`}
             onClick={() => setActiveTab('history')}
           >
             <CheckCircle2 size={16} />
@@ -219,7 +276,7 @@ export const OfficerDashboard: React.FC<OfficerDashboardProps> = ({ stats, drain
           <div className="card-header">
             <div>
               <h2 className="section-title">
-                <Gauge size={20} color="#0ea5e9" />
+                <Gauge size={20} color="#2563eb" />
                 Drainage Infrastructure Maintenance Prioritization Registry
               </h2>
               <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: 4 }}>
@@ -295,7 +352,7 @@ export const OfficerDashboard: React.FC<OfficerDashboardProps> = ({ stats, drain
                 {filteredDrains.map((d) => (
                   <tr key={d.id}>
                     <td>
-                      <span style={{ fontWeight: 800, color: '#38bdf8', fontFamily: 'var(--font-mono)' }}>
+                      <span style={{ fontWeight: 800, color: 'var(--text-link)', fontFamily: 'var(--font-mono)' }}>
                         {d.code}
                       </span>
                     </td>
@@ -385,7 +442,7 @@ export const OfficerDashboard: React.FC<OfficerDashboardProps> = ({ stats, drain
           <div className="card-header">
             <div>
               <h2 className="section-title">
-                <Clock size={20} color="#f59e0b" />
+                <Clock size={20} color="#d97706" />
                 Civilian Reports & Incident Verification Queue
               </h2>
               <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: 4 }}>
@@ -403,6 +460,7 @@ export const OfficerDashboard: React.FC<OfficerDashboardProps> = ({ stats, drain
               <option value="Submitted">Pending Verification (Unreviewed)</option>
               <option value="Verified">Verified by Officer</option>
               <option value="Resolved">Resolved / Cleared</option>
+              <option value="Rejected">Rejected</option>
             </select>
 
             <select
@@ -472,11 +530,11 @@ export const OfficerDashboard: React.FC<OfficerDashboardProps> = ({ stats, drain
                     <td>
                       {r.drain_code ? (
                         <div>
-                          <span style={{ fontWeight: 700, color: '#38bdf8' }}>{r.drain_code}</span>
+                          <span style={{ fontWeight: 700, color: 'var(--text-link)' }}>{r.drain_code}</span>
                           <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{r.drain_name}</div>
                         </div>
                       ) : (
-                        <span style={{ color: '#f59e0b', fontSize: '0.78rem' }}>Unmapped</span>
+                        <span style={{ color: '#d97706', fontSize: '0.78rem' }}>Unmapped</span>
                       )}
                     </td>
                     <td>
@@ -531,7 +589,7 @@ export const OfficerDashboard: React.FC<OfficerDashboardProps> = ({ stats, drain
           <div className="card-header">
             <div>
               <h2 className="section-title">
-                <Wrench size={20} color="#0ea5e9" />
+                <Wrench size={20} color="#2563eb" />
                 Municipal Maintenance Dispatch & Work Orders
               </h2>
               <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: 4 }}>
@@ -552,6 +610,43 @@ export const OfficerDashboard: React.FC<OfficerDashboardProps> = ({ stats, drain
             </button>
           </div>
 
+          {taskActionSuccess && (
+            <div className="callout callout-info" style={{ marginBottom: 14 }}>
+              <CheckCircle2 size={16} />
+              <div>{taskActionSuccess}</div>
+            </div>
+          )}
+
+          {taskActionError && (
+            <div className="callout callout-warning" style={{ marginBottom: 14 }}>
+              <AlertTriangle size={16} />
+              <div>{taskActionError}</div>
+            </div>
+          )}
+
+          <div className="filter-bar">
+            <div className="search-input">
+              <input
+                type="text"
+                placeholder="Search by title, drain code/name, crew, or task ID..."
+                value={taskSearch}
+                onChange={(e) => setTaskSearch(e.target.value)}
+                style={{ width: '100%' }}
+              />
+            </div>
+
+            <select
+              value={taskStatusFilter}
+              onChange={(e) => setTaskStatusFilter(e.target.value as any)}
+            >
+              <option value="all">All Work Order Statuses</option>
+              <option value="Scheduled">Scheduled</option>
+              <option value="In Progress">In Progress</option>
+              <option value="Completed">Completed</option>
+              <option value="Cancelled">Cancelled</option>
+            </select>
+          </div>
+
           <div className="table-container">
             <table className="data-table">
               <thead>
@@ -567,67 +662,103 @@ export const OfficerDashboard: React.FC<OfficerDashboardProps> = ({ stats, drain
                 </tr>
               </thead>
               <tbody>
-                {tasks.map((t) => (
-                  <tr key={t.id}>
-                    <td>
-                      <span style={{ fontWeight: 800, color: 'var(--text-main)', fontFamily: 'var(--font-mono)' }}>
-                        {t.id}
-                      </span>
-                      {t.source_report_id && (
-                        <div style={{ fontSize: '0.7rem', color: '#38bdf8' }}>
-                          Ref: {t.source_report_id}
-                        </div>
-                      )}
-                    </td>
-                    <td style={{ maxWidth: 260 }}>
-                      <div style={{ fontWeight: 700, color: 'var(--text-main)', fontSize: '0.85rem' }}>
-                        {t.title}
-                      </div>
-                      <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
-                        {t.description}
-                      </div>
-                    </td>
-                    <td>
-                      <span style={{ fontWeight: 700, color: '#38bdf8' }}>{t.drain_code}</span>
-                      <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>{t.drain_name}</div>
-                    </td>
-                    <td>
-                      <div style={{ fontSize: '0.82rem', color: 'var(--text-main)', fontWeight: 600 }}>
-                        {t.assigned_crew}
-                      </div>
-                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                        Est: {t.estimated_duration_hours || 4} hrs
-                      </div>
-                    </td>
-                    <td>
-                      <span className={`badge badge-prio-${t.priority.toLowerCase()}`}>
-                        {t.priority}
-                      </span>
-                    </td>
-                    <td>{t.due_date}</td>
-                    <td>
-                      <span className={`badge badge-status ${t.status.toLowerCase().replace(' ', '-')}`}>
-                        {t.status}
-                      </span>
-                    </td>
-                    <td>
-                      {t.status !== 'Completed' ? (
-                        <button
-                          type="button"
-                          className="btn btn-success btn-sm"
-                          onClick={() => setTaskToComplete(t)}
-                        >
-                          <CheckCircle2 size={13} />
-                          Sign-off Completion
-                        </button>
-                      ) : (
-                        <span style={{ fontSize: '0.78rem', color: '#34d399', fontWeight: 600 }}>
-                          ✓ Completed
-                        </span>
-                      )}
+                {filteredTasks.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)' }}>
+                      No maintenance work orders found matching your criteria.
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  filteredTasks.map((t) => (
+                    <tr key={t.id}>
+                      <td>
+                        <span style={{ fontWeight: 800, color: 'var(--text-main)', fontFamily: 'var(--font-mono)' }}>
+                          {t.id}
+                        </span>
+                        {t.source_report_id && (
+                          <div style={{ fontSize: '0.7rem', color: 'var(--text-link)' }}>
+                            Ref: {t.source_report_id}
+                          </div>
+                        )}
+                      </td>
+                      <td style={{ maxWidth: 260 }}>
+                        <div style={{ fontWeight: 700, color: 'var(--text-main)', fontSize: '0.85rem' }}>
+                          {t.title}
+                        </div>
+                        <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                          {t.description}
+                        </div>
+                      </td>
+                      <td>
+                        <span style={{ fontWeight: 700, color: 'var(--text-link)' }}>{t.drain_code}</span>
+                        <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>{t.drain_name}</div>
+                      </td>
+                      <td>
+                        <div style={{ fontSize: '0.82rem', color: 'var(--text-main)', fontWeight: 600 }}>
+                          {t.assigned_crew}
+                        </div>
+                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                          Est: {t.estimated_duration_hours || 4} hrs
+                        </div>
+                      </td>
+                      <td>
+                        <span className={`badge badge-prio-${t.priority.toLowerCase()}`}>
+                          {t.priority}
+                        </span>
+                      </td>
+                      <td>{t.due_date}</td>
+                      <td>
+                        <span className={`badge badge-status ${t.status.toLowerCase().replace(' ', '-')}`}>
+                          {t.status}
+                        </span>
+                      </td>
+                      <td>
+                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                          {t.status === 'Scheduled' && (
+                            <button
+                              type="button"
+                              className="btn btn-secondary btn-sm"
+                              onClick={() => handleStartTask(t.id)}
+                              title="Set status to In Progress"
+                            >
+                              Start Work
+                            </button>
+                          )}
+                          {t.status !== 'Completed' && t.status !== 'Cancelled' ? (
+                            <>
+                              <button
+                                type="button"
+                                className="btn btn-success btn-sm"
+                                onClick={() => setTaskToComplete(t)}
+                              >
+                                <CheckCircle2 size={13} />
+                                Sign-off
+                              </button>
+                              <button
+                                type="button"
+                                className="btn btn-secondary btn-sm"
+                                style={{ borderColor: '#fca5a5', color: '#b91c1c' }}
+                                onClick={() => setCancellingTask(t)}
+                                title="Cancel this work order"
+                              >
+                                <XCircle size={13} />
+                                Cancel
+                              </button>
+                            </>
+                          ) : t.status === 'Completed' ? (
+                            <span style={{ fontSize: '0.78rem', color: '#16a34a', fontWeight: 600 }}>
+                              ✓ Completed
+                            </span>
+                          ) : (
+                            <span style={{ fontSize: '0.78rem', color: '#dc2626', fontWeight: 600 }}>
+                              ✕ Cancelled
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
@@ -640,7 +771,7 @@ export const OfficerDashboard: React.FC<OfficerDashboardProps> = ({ stats, drain
           <div className="card-header">
             <div>
               <h2 className="section-title">
-                <MapPin size={20} color="#0ea5e9" />
+                <MapPin size={20} color="#2563eb" />
                 Metropolitan Spatial Catchment GIS
               </h2>
               <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: 4 }}>
@@ -664,7 +795,7 @@ export const OfficerDashboard: React.FC<OfficerDashboardProps> = ({ stats, drain
             <div className="card-header">
               <div>
                 <h2 className="section-title">
-                  <CheckCircle2 size={20} color="#10b981" />
+                  <CheckCircle2 size={20} color="#16a34a" />
                   Recorded Maintenance Sign-offs & Waste Cleared Log
                 </h2>
                 <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: 4 }}>
@@ -695,7 +826,7 @@ export const OfficerDashboard: React.FC<OfficerDashboardProps> = ({ stats, drain
                         </span>
                       </td>
                       <td>
-                        <span style={{ fontWeight: 700, color: '#38bdf8' }}>{rec.drain_code}</span>
+                        <span style={{ fontWeight: 700, color: 'var(--text-link)' }}>{rec.drain_code}</span>
                         <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>{rec.task_id}</div>
                       </td>
                       <td>{rec.completion_date}</td>
@@ -709,7 +840,7 @@ export const OfficerDashboard: React.FC<OfficerDashboardProps> = ({ stats, drain
                         )}
                       </td>
                       <td>
-                        <span style={{ fontWeight: 800, color: '#34d399', fontSize: '0.92rem' }}>
+                        <span style={{ fontWeight: 800, color: '#16a34a', fontSize: '0.92rem' }}>
                           {rec.waste_removed_kg} kg
                         </span>
                       </td>
@@ -729,7 +860,7 @@ export const OfficerDashboard: React.FC<OfficerDashboardProps> = ({ stats, drain
             <div className="card-header">
               <div>
                 <h2 className="section-title">
-                  <ShieldAlert size={20} color="#0ea5e9" />
+                  <ShieldAlert size={20} color="#2563eb" />
                   Municipal Governance Audit Trail
                 </h2>
                 <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: 4 }}>
@@ -756,12 +887,12 @@ export const OfficerDashboard: React.FC<OfficerDashboardProps> = ({ stats, drain
                       <td style={{ fontFamily: 'var(--font-mono)', fontSize: '0.78rem' }}>{a.id}</td>
                       <td style={{ fontSize: '0.78rem' }}>{new Date(a.timestamp).toLocaleString()}</td>
                       <td>
-                        <span className="badge" style={{ background: 'rgba(255,255,255,0.06)' }}>
+                        <span className="badge badge-status">
                           {a.action}
                         </span>
                       </td>
                       <td>
-                        <span style={{ color: '#38bdf8', fontWeight: 600 }}>{a.entity_type}</span>: {a.entity_id}
+                        <span style={{ color: 'var(--text-link)', fontWeight: 600 }}>{a.entity_type}</span>: {a.entity_id}
                       </td>
                       <td>
                         <div style={{ fontWeight: 600, color: 'var(--text-main)' }}>{a.actor_name}</div>
@@ -822,6 +953,39 @@ export const OfficerDashboard: React.FC<OfficerDashboardProps> = ({ stats, drain
             setTaskModalSourceReport(repId);
           }}
         />
+      )}
+
+      {/* Task Cancellation Confirmation Dialog */}
+      {cancellingTask && (
+        <div className="modal-overlay" onClick={() => setCancellingTask(null)} role="dialog" aria-modal="true">
+          <div className="modal-content" style={{ maxWidth: 460 }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <AlertTriangle size={20} color="#dc2626" />
+                <h2 style={{ fontSize: '1.15rem', fontWeight: 800 }}>Confirm Work Order Cancellation</h2>
+              </div>
+              <button className="modal-close-btn" onClick={() => setCancellingTask(null)} aria-label="Close dialog">
+                <X size={18} />
+              </button>
+            </div>
+            <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', marginBottom: 20 }}>
+              Are you sure you want to cancel work order <strong>{cancellingTask.id}</strong> ({cancellingTask.title})? This will update the status to Cancelled and record an audit log event.
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+              <button type="button" className="btn btn-secondary" onClick={() => setCancellingTask(null)}>
+                Keep Task
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                style={{ background: '#dc2626', color: '#ffffff', borderColor: '#b91c1c' }}
+                onClick={() => handleCancelTask(cancellingTask)}
+              >
+                Confirm Cancellation
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

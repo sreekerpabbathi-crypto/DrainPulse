@@ -158,6 +158,38 @@ export const api = {
     return handleResponse<Inspection[]>(res);
   },
 
+  async updateTaskStatus(taskId: string, status: 'Scheduled' | 'In Progress' | 'Cancelled', notes?: string): Promise<MaintenanceTask> {
+    const res = await fetch(`${API_BASE}/tasks/${encodeURIComponent(taskId)}/status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status, notes }),
+    });
+    return handleResponse<MaintenanceTask>(res);
+  },
+
+  async createInspection(payload: {
+    drain_id: string;
+    inspector_name: string;
+    inspection_date: string;
+    blockage_percentage: number;
+    structural_condition: 'Good' | 'Fair' | 'Poor' | 'Failing';
+    silt_depth_cm: number;
+    flow_rate_estimate: 'Normal' | 'Sluggish' | 'Stagnant' | 'Backflow';
+    notes?: string;
+  }): Promise<{ message: string; inspection_id: string }> {
+    const res = await fetch(`${API_BASE}/inspections`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    return handleResponse(res);
+  },
+
+  async getReport(reportId: string): Promise<Report> {
+    const res = await fetch(`${API_BASE}/reports/${encodeURIComponent(reportId)}`);
+    return handleResponse<Report>(res);
+  },
+
   async getAuditEvents(limit = 40): Promise<AuditEvent[]> {
     const res = await fetch(`${API_BASE}/audit-events?limit=${limit}`);
     return handleResponse<AuditEvent[]>(res);

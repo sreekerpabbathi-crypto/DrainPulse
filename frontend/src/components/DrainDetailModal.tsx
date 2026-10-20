@@ -25,6 +25,44 @@ export const DrainDetailModal: React.FC<DrainDetailModalProps> = ({ drainId, onC
 
   const [activeTab, setActiveTab] = useState<'risk' | 'inspections' | 'reports' | 'history'>('risk');
 
+  // New Inspection State
+  const [showInspectionModal, setShowInspectionModal] = useState(false);
+  const [inspectorName, setInspectorName] = useState('Er. Rajesh Verma (Lead Civil)');
+  const [inspectionDate, setInspectionDate] = useState(new Date().toISOString().split('T')[0]);
+  const [blockagePct, setBlockagePct] = useState('25.0');
+  const [structuralCond, setStructuralCond] = useState<'Good' | 'Fair' | 'Poor' | 'Failing'>('Good');
+  const [siltDepth, setSiltDepth] = useState('8.0');
+  const [flowRate, setFlowRate] = useState<'Normal' | 'Sluggish' | 'Stagnant' | 'Backflow'>('Normal');
+  const [inspectionNotes, setInspectionNotes] = useState('');
+  const [submittingInspection, setSubmittingInspection] = useState(false);
+  const [inspectionError, setInspectionError] = useState<string | null>(null);
+
+  const handleLogInspection = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      setSubmittingInspection(true);
+      setInspectionError(null);
+      await api.createInspection({
+        drain_id: drainId,
+        inspector_name: inspectorName.trim(),
+        inspection_date: inspectionDate,
+        blockage_percentage: parseFloat(blockagePct) || 0,
+        structural_condition: structuralCond,
+        silt_depth_cm: parseFloat(siltDepth) || 0,
+        flow_rate_estimate: flowRate,
+        notes: inspectionNotes.trim() || undefined
+      });
+      const refreshed = await api.getDrainDetail(drainId);
+      setData(refreshed);
+      setShowInspectionModal(false);
+      setActiveTab('inspections');
+    } catch (err: any) {
+      setInspectionError(err.message || 'Failed to record inspection');
+    } finally {
+      setSubmittingInspection(false);
+    }
+  };
+
   useEffect(() => {
     let mounted = true;
     setLoading(true);
@@ -103,91 +141,61 @@ export const DrainDetailModal: React.FC<DrainDetailModalProps> = ({ drainId, onC
                 <span className={`badge badge-prio-${data.risk_assessment.priority_tier.toLowerCase()}`}>
                   Priority: {data.risk_assessment.priority_tier} ({data.risk_assessment.total_score} / 90 pts)
                 </span>
-                <span className="badge" style={{ background: 'rgba(255,255,255,0.06)', color: 'var(--text-secondary)' }}>
+                <span className="badge" style={{ background: '#f1f5f9', color: 'var(--text-secondary)' }}>
                   Depth: {data.depth_m}m
                 </span>
               </div>
 
-              <button
-                type="button"
-                className="btn btn-primary btn-sm"
-                onClick={() => onAssignTask(data)}
-              >
-                <Wrench size={14} />
-                Dispatch Maintenance Task
-              </button>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => setShowInspectionModal(true)}
+                >
+                  <Shield size={14} />
+                  Log Field Inspection
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm"
+                  onClick={() => onAssignTask(data)}
+                >
+                  <Wrench size={14} />
+                  Dispatch Maintenance Task
+                </button>
+              </div>
             </div>
 
             {/* Modal Tabs */}
-            <div style={{ display: 'flex', borderBottom: '1px solid var(--border-subtle)', marginBottom: 20 }}>
+            <div className="modal-tabs-nav">
               <button
                 type="button"
+                className={activeTab === 'risk' ? 'active' : ''}
                 onClick={() => setActiveTab('risk')}
-                style={{
-                  padding: '10px 18px',
-                  background: 'transparent',
-                  color: activeTab === 'risk' ? '#38bdf8' : 'var(--text-muted)',
-                  borderBottom: activeTab === 'risk' ? '2px solid #38bdf8' : '2px solid transparent',
-                  fontWeight: 600,
-                  fontSize: '0.88rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6
-                }}
               >
                 <Gauge size={15} />
                 Explainable Risk Engine
               </button>
               <button
                 type="button"
+                className={activeTab === 'reports' ? 'active' : ''}
                 onClick={() => setActiveTab('reports')}
-                style={{
-                  padding: '10px 18px',
-                  background: 'transparent',
-                  color: activeTab === 'reports' ? '#38bdf8' : 'var(--text-muted)',
-                  borderBottom: activeTab === 'reports' ? '2px solid #38bdf8' : '2px solid transparent',
-                  fontWeight: 600,
-                  fontSize: '0.88rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6
-                }}
               >
                 <FileText size={15} />
                 Linked Reports ({data.reports.length})
               </button>
               <button
                 type="button"
+                className={activeTab === 'inspections' ? 'active' : ''}
                 onClick={() => setActiveTab('inspections')}
-                style={{
-                  padding: '10px 18px',
-                  background: 'transparent',
-                  color: activeTab === 'inspections' ? '#38bdf8' : 'var(--text-muted)',
-                  borderBottom: activeTab === 'inspections' ? '2px solid #38bdf8' : '2px solid transparent',
-                  fontWeight: 600,
-                  fontSize: '0.88rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6
-                }}
               >
                 <Shield size={15} />
                 Inspections ({data.inspections.length})
               </button>
               <button
                 type="button"
+                className={activeTab === 'history' ? 'active' : ''}
                 onClick={() => setActiveTab('history')}
-                style={{
-                  padding: '10px 18px',
-                  background: 'transparent',
-                  color: activeTab === 'history' ? '#38bdf8' : 'var(--text-muted)',
-                  borderBottom: activeTab === 'history' ? '2px solid #38bdf8' : '2px solid transparent',
-                  fontWeight: 600,
-                  fontSize: '0.88rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6
-                }}
               >
                 <CheckCircle2 size={15} />
                 Maintenance History ({data.maintenance_history.length})
@@ -197,7 +205,7 @@ export const DrainDetailModal: React.FC<DrainDetailModalProps> = ({ drainId, onC
             {/* TAB 1: Risk Engine Explainability */}
             {activeTab === 'risk' && (
               <div>
-                <div style={{ background: 'rgba(15, 23, 42, 0.8)', border: '1px solid var(--border-medium)', borderRadius: 'var(--radius-lg)', padding: 18, marginBottom: 20 }}>
+                <div style={{ background: '#f8fafc', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)', padding: 18, marginBottom: 20 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
                     <div>
                       <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
@@ -234,11 +242,11 @@ export const DrainDetailModal: React.FC<DrainDetailModalProps> = ({ drainId, onC
                 </div>
 
                 <h3 style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Layers size={16} color="#38bdf8" />
-                  Contributing Risk Factors & Empirical Evidence (5 Factors)
+                  <Layers size={16} color="var(--accent-primary)" />
+                  Contributing Risk Factors & Empirical Evidence (4 Factors)
                 </h3>
 
-                {data.risk_assessment.factors.map((factor: RiskFactor, idx: number) => {
+                {data.risk_assessment.factors.filter((f: RiskFactor) => !f.is_excluded && f.name !== 'Real-time Rainfall Telemetry').map((factor: RiskFactor, idx: number) => {
                   const pct = factor.max_score > 0 ? (factor.score / factor.max_score) * 100 : 0;
                   const isExcluded = factor.is_excluded;
                   const isMissingData = factor.inspection_status === 'UNKNOWN_NEEDS_INSPECTION' || factor.field_status === 'UNKNOWN';
@@ -248,20 +256,20 @@ export const DrainDetailModal: React.FC<DrainDetailModalProps> = ({ drainId, onC
                       key={idx}
                       className="risk-factor-row"
                       style={{
-                        borderColor: isExcluded ? 'rgba(255,255,255,0.06)' : (
-                          isMissingData ? 'rgba(244, 63, 94, 0.4)' : (
-                            factor.score >= 20 ? 'rgba(244, 63, 94, 0.3)' : 'var(--border-subtle)'
+                        borderColor: isExcluded ? 'var(--border-subtle)' : (
+                          isMissingData ? '#fca5a5' : (
+                            factor.score >= 20 ? '#fecaca' : 'var(--border-subtle)'
                           )
                         ),
-                        background: isMissingData ? 'rgba(244, 63, 94, 0.05)' : (
-                          isExcluded ? 'rgba(255,255,255,0.02)' : 'var(--bg-surface)'
+                        background: isMissingData ? '#fef2f2' : (
+                          isExcluded ? '#f8fafc' : '#ffffff'
                         )
                       }}
                     >
                       <div className="risk-factor-header">
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           <span className="risk-factor-name">{factor.name}</span>
-                          <span className="badge" style={{ fontSize: '0.68rem', background: 'rgba(255,255,255,0.06)' }}>
+                          <span className="badge" style={{ fontSize: '0.68rem', background: '#f1f5f9', color: 'var(--text-secondary)' }}>
                             {factor.weight_label}
                           </span>
                           {isMissingData && (
@@ -270,7 +278,7 @@ export const DrainDetailModal: React.FC<DrainDetailModalProps> = ({ drainId, onC
                             </span>
                           )}
                           {isExcluded && (
-                            <span className="badge" style={{ background: 'rgba(255,255,255,0.08)', color: 'var(--text-muted)' }}>
+                            <span className="badge" style={{ background: '#f1f5f9', color: 'var(--text-muted)' }}>
                               EXCLUDED
                             </span>
                           )}
@@ -278,8 +286,8 @@ export const DrainDetailModal: React.FC<DrainDetailModalProps> = ({ drainId, onC
 
                         <div className="risk-factor-score" style={{
                           color: isExcluded ? 'var(--text-muted)' : (
-                            factor.score >= 18 ? '#fda4af' : (
-                              factor.score > 0 ? '#fcd34d' : '#6ee7b7'
+                            factor.score >= 18 ? '#dc2626' : (
+                              factor.score > 0 ? '#d97706' : '#16a34a'
                             )
                           )
                         }}>
@@ -293,8 +301,8 @@ export const DrainDetailModal: React.FC<DrainDetailModalProps> = ({ drainId, onC
                             className="risk-progress-fill"
                             style={{
                               width: `${pct}%`,
-                              background: factor.score >= 20 ? 'linear-gradient(90deg, #f59e0b, #f43f5e)' : (
-                                factor.score >= 10 ? 'linear-gradient(90deg, #0ea5e9, #f59e0b)' : '#10b981'
+                              background: factor.score >= 20 ? '#dc2626' : (
+                                factor.score >= 10 ? '#d97706' : '#2563eb'
                               )
                             }}
                           />
@@ -316,7 +324,7 @@ export const DrainDetailModal: React.FC<DrainDetailModalProps> = ({ drainId, onC
               <div>
                 {data.reports.length === 0 ? (
                   <div className="state-container">
-                    <CheckCircle2 size={36} className="state-icon" style={{ color: '#10b981' }} />
+                    <CheckCircle2 size={36} className="state-icon" style={{ color: '#16a34a' }} />
                     <div className="state-title">No Active Blockage Reports</div>
                     <div className="state-desc">This drain has zero pending or verified civilian blockage alerts.</div>
                   </div>
@@ -376,7 +384,7 @@ export const DrainDetailModal: React.FC<DrainDetailModalProps> = ({ drainId, onC
               <div>
                 {data.inspections.length === 0 ? (
                   <div className="state-container">
-                    <AlertTriangle size={36} className="state-icon" style={{ color: '#f43f5e' }} />
+                    <AlertTriangle size={36} className="state-icon" style={{ color: '#dc2626' }} />
                     <div className="state-title">No Inspection Records on File</div>
                     <div className="state-desc">
                       This asset has never had a documented engineering inspection. The risk engine has automatically marked it as
@@ -405,7 +413,7 @@ export const DrainDetailModal: React.FC<DrainDetailModalProps> = ({ drainId, onC
                             <td>{ins.inspection_date}</td>
                             <td>{ins.inspector_name}</td>
                             <td>
-                              <span style={{ fontWeight: 700, color: ins.blockage_percentage >= 50 ? '#fda4af' : '#6ee7b7' }}>
+                              <span style={{ fontWeight: 700, color: ins.blockage_percentage >= 50 ? '#dc2626' : '#16a34a' }}>
                                 {ins.blockage_percentage}%
                               </span>
                             </td>
@@ -456,7 +464,7 @@ export const DrainDetailModal: React.FC<DrainDetailModalProps> = ({ drainId, onC
                             <td>{rec.completion_date}</td>
                             <td>{rec.completed_by}</td>
                             <td style={{ maxWidth: 220 }}>{rec.actions_taken}</td>
-                            <td style={{ fontWeight: 700, color: '#34d399' }}>{rec.waste_removed_kg} kg</td>
+                            <td style={{ fontWeight: 700, color: '#16a34a' }}>{rec.waste_removed_kg} kg</td>
                             <td>
                               <span className="badge badge-prio-low">
                                 {rec.post_condition}
@@ -472,6 +480,136 @@ export const DrainDetailModal: React.FC<DrainDetailModalProps> = ({ drainId, onC
               </div>
             )}
           </>
+        )}
+
+        {/* Modal to Log Physical Inspection */}
+        {showInspectionModal && (
+          <div className="modal-overlay" onClick={() => setShowInspectionModal(false)} role="dialog" aria-modal="true" style={{ zIndex: 1100 }}>
+            <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 600 }}>
+              <div className="modal-header">
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <Shield size={20} color="#2563eb" />
+                  <h3 style={{ fontSize: '1.15rem', fontWeight: 800 }}>Log Field Inspection Observation</h3>
+                </div>
+                <button className="modal-close-btn" onClick={() => setShowInspectionModal(false)} aria-label="Close dialog">
+                  <X size={18} />
+                </button>
+              </div>
+
+              {inspectionError && (
+                <div className="callout callout-warning" style={{ marginBottom: 14 }}>
+                  <AlertTriangle size={16} />
+                  <div>{inspectionError}</div>
+                </div>
+              )}
+
+              <form onSubmit={handleLogInspection}>
+                <div className="form-grid">
+                  <div className="form-group">
+                    <label className="form-label">Inspecting Civil Engineer</label>
+                    <input
+                      type="text"
+                      value={inspectorName}
+                      onChange={(e) => setInspectorName(e.target.value)}
+                      style={{ width: '100%' }}
+                      required
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">Inspection Date</label>
+                    <input
+                      type="date"
+                      value={inspectionDate}
+                      onChange={(e) => setInspectionDate(e.target.value)}
+                      style={{ width: '100%' }}
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="form-grid">
+                  <div className="form-group">
+                    <label className="form-label">Estimated Blockage (%)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="1"
+                      value={blockagePct}
+                      onChange={(e) => setBlockagePct(e.target.value)}
+                      style={{ width: '100%' }}
+                      required
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">Structural Condition</label>
+                    <select
+                      value={structuralCond}
+                      onChange={(e) => setStructuralCond(e.target.value as any)}
+                      style={{ width: '100%' }}
+                    >
+                      <option value="Good">Good (Sound culvert structure)</option>
+                      <option value="Fair">Fair (Minor spalling or surface wear)</option>
+                      <option value="Poor">Poor (Cracked walls / joint separation)</option>
+                      <option value="Failing">Failing (Structural collapse hazard)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="form-grid">
+                  <div className="form-group">
+                    <label className="form-label">Measured Silt Bed Depth (cm)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="200"
+                      step="0.5"
+                      value={siltDepth}
+                      onChange={(e) => setSiltDepth(e.target.value)}
+                      style={{ width: '100%' }}
+                      required
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">Observed Flow Rate</label>
+                    <select
+                      value={flowRate}
+                      onChange={(e) => setFlowRate(e.target.value as any)}
+                      style={{ width: '100%' }}
+                    >
+                      <option value="Normal">Normal (Clear gravity runoff)</option>
+                      <option value="Sluggish">Sluggish (Partial backwater build-up)</option>
+                      <option value="Stagnant">Stagnant (Zero gravitational flow)</option>
+                      <option value="Backflow">Backflow (Inlet backwater surge)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Field Observation Notes</label>
+                  <textarea
+                    rows={2}
+                    value={inspectionNotes}
+                    onChange={(e) => setInspectionNotes(e.target.value)}
+                    placeholder="e.g. Silt buildup concentrated near west junction chamber. Concrete lid secure."
+                    style={{ width: '100%', resize: 'vertical' }}
+                  />
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 18 }}>
+                  <button type="button" className="btn btn-secondary" onClick={() => setShowInspectionModal(false)}>
+                    Cancel
+                  </button>
+                  <button type="submit" className="btn btn-primary" disabled={submittingInspection}>
+                    {submittingInspection ? 'Submitting...' : 'Save Inspection Record'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
         )}
       </div>
     </div>

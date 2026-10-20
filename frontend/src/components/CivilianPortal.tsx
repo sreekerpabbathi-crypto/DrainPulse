@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Send, AlertCircle, CheckCircle, RefreshCw, FileText
+  Send, AlertCircle, CheckCircle, RefreshCw, FileText, Search, ShieldCheck
 } from 'lucide-react';
 import type { Drain, Report } from '../types';
 import { api } from '../api';
@@ -11,12 +11,18 @@ interface CivilianPortalProps {
 }
 
 export const CivilianPortal: React.FC<CivilianPortalProps> = ({ drains, onReportCreated }) => {
-  const [activeView, setActiveView] = useState<'submit' | 'feed'>('submit');
+  const [activeView, setActiveView] = useState<'submit' | 'feed' | 'track'>('submit');
   const [reports, setReports] = useState<Report[]>([]);
   const [loadingReports, setLoadingReports] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [genuineFilter, setGenuineFilter] = useState<'all' | 'genuine' | 'simulated'>('all');
+
+  // Tracking state
+  const [trackInputId, setTrackInputId] = useState('');
+  const [trackedReport, setTrackedReport] = useState<Report | null>(null);
+  const [trackLoading, setTrackLoading] = useState(false);
+  const [trackError, setTrackError] = useState<string | null>(null);
 
   // Form State
   const [drainId, setDrainId] = useState<string>('');
@@ -90,6 +96,26 @@ export const CivilianPortal: React.FC<CivilianPortalProps> = ({ drains, onReport
     }
   };
 
+  const handleTrackSearch = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const queryId = trackInputId.trim().toUpperCase();
+    if (!queryId) {
+      setTrackError('Please enter a valid report reference ID (e.g. REP-CIV-5B8D32 or REP-001).');
+      return;
+    }
+    try {
+      setTrackLoading(true);
+      setTrackError(null);
+      const rep = await api.getReport(queryId);
+      setTrackedReport(rep);
+    } catch (err: any) {
+      setTrackError(err.message || `No report found matching ID "${queryId}".`);
+      setTrackedReport(null);
+    } finally {
+      setTrackLoading(false);
+    }
+  };
+
   const filteredReports = reports.filter((r) => {
     if (statusFilter !== 'all' && r.status.toLowerCase() !== statusFilter.toLowerCase()) {
       return false;
@@ -112,7 +138,7 @@ export const CivilianPortal: React.FC<CivilianPortalProps> = ({ drains, onReport
   return (
     <div>
       {/* Civilian Portal Navigation Tabs */}
-      <div style={{ display: 'flex', gap: 12, marginBottom: 24, borderBottom: '1px solid var(--border-subtle)', paddingBottom: 12 }}>
+      <div className="civilian-nav-tabs">
         <button
           type="button"
           className={`btn ${activeView === 'submit' ? 'btn-primary' : 'btn-secondary'}`}
@@ -120,6 +146,14 @@ export const CivilianPortal: React.FC<CivilianPortalProps> = ({ drains, onReport
         >
           <Send size={16} />
           Report Drainage Issue
+        </button>
+        <button
+          type="button"
+          className={`btn ${activeView === 'track' ? 'btn-primary' : 'btn-secondary'}`}
+          onClick={() => setActiveView('track')}
+        >
+          <Search size={16} />
+          Track Report by Reference ID
         </button>
         <button
           type="button"
@@ -135,11 +169,11 @@ export const CivilianPortal: React.FC<CivilianPortalProps> = ({ drains, onReport
       {activeView === 'submit' && (
         <div style={{ maxWidth: 780, margin: '0 auto' }}>
           {createdReport && (
-            <div className="card" style={{ border: '1px solid #10b981', background: 'rgba(16, 185, 129, 0.08)', marginBottom: 24 }}>
+            <div className="card" style={{ border: '1px solid #86efac', background: '#f0fdf4', marginBottom: 24 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-                <CheckCircle size={28} color="#10b981" />
+                <CheckCircle size={28} color="#16a34a" />
                 <div>
-                  <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#6ee7b7' }}>
+                  <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#166534' }}>
                     Report Successfully Registered!
                   </h3>
                   <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
@@ -148,11 +182,11 @@ export const CivilianPortal: React.FC<CivilianPortalProps> = ({ drains, onReport
                 </div>
               </div>
 
-              <div style={{ background: 'var(--bg-surface)', padding: 14, borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)' }}>
+              <div style={{ background: '#ffffff', padding: 14, borderRadius: 'var(--radius-md)', border: '1px solid #bbf7d0' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
                   <div>
                     <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Tracking Reference ID:</span>
-                    <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#38bdf8', fontFamily: 'var(--font-mono)' }}>
+                    <div style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-link)', fontFamily: 'var(--font-mono)' }}>
                       {createdReport.id}
                     </div>
                   </div>
@@ -181,7 +215,7 @@ export const CivilianPortal: React.FC<CivilianPortalProps> = ({ drains, onReport
             <div className="card-header">
               <div>
                 <h2 className="section-title">
-                  <Send size={20} color="#0ea5e9" />
+                  <Send size={20} color="#2563eb" />
                   Civilian Drainage Incident Report
                 </h2>
                 <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: 4 }}>
@@ -323,7 +357,7 @@ export const CivilianPortal: React.FC<CivilianPortalProps> = ({ drains, onReport
           <div className="card-header">
             <div>
               <h2 className="section-title">
-                <FileText size={20} color="#0ea5e9" />
+                <FileText size={20} color="#2563eb" />
                 Community Reports & Public Status Feed
               </h2>
               <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: 4 }}>
@@ -424,7 +458,7 @@ export const CivilianPortal: React.FC<CivilianPortalProps> = ({ drains, onReport
                       <td>
                         {r.drain_code ? (
                           <div>
-                            <span style={{ fontWeight: 700, color: '#38bdf8' }}>{r.drain_code}</span>
+                            <span style={{ fontWeight: 700, color: 'var(--text-link)' }}>{r.drain_code}</span>
                             <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>{r.drain_name}</div>
                           </div>
                         ) : (
@@ -454,6 +488,158 @@ export const CivilianPortal: React.FC<CivilianPortalProps> = ({ drains, onReport
                   ))}
                 </tbody>
               </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* VIEW 3: Dedicated Reference ID Tracker */}
+      {activeView === 'track' && (
+        <div style={{ maxWidth: 740, margin: '0 auto' }}>
+          <div className="card" style={{ marginBottom: 24 }}>
+            <div className="card-header">
+              <div>
+                <h2 className="section-title">
+                  <Search size={20} color="#2563eb" />
+                  Incident Live Status Tracker
+                </h2>
+                <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: 4 }}>
+                  Enter your tracking reference ID (e.g. <code>REP-CIV-XXXXXX</code>) to view real-time municipal inspection and resolution progress.
+                </p>
+              </div>
+            </div>
+
+            <form onSubmit={handleTrackSearch} style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
+              <input
+                type="text"
+                placeholder="Enter Tracking ID (e.g. REP-CIV-5B8D32 or REP-001)..."
+                value={trackInputId}
+                onChange={(e) => setTrackInputId(e.target.value)}
+                style={{ flex: 1, fontFamily: 'var(--font-mono)' }}
+              />
+              <button type="submit" className="btn btn-primary" disabled={trackLoading}>
+                <Search size={15} />
+                {trackLoading ? 'Searching...' : 'Track Incident'}
+              </button>
+            </form>
+
+            {trackError && (
+              <div className="callout callout-warning">
+                <AlertCircle size={18} />
+                <div>{trackError}</div>
+              </div>
+            )}
+          </div>
+
+          {trackedReport && (
+            <div className="card" style={{ border: '1px solid var(--border-subtle)', background: '#ffffff' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18, flexWrap: 'wrap', gap: 10 }}>
+                <div>
+                  <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Report Reference</span>
+                  <div style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--text-link)', fontFamily: 'var(--font-mono)' }}>
+                    {trackedReport.id}
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  {trackedReport.is_simulated ? (
+                    <span className="badge badge-simulated">SIMULATED DEMO</span>
+                  ) : (
+                    <span className="badge badge-genuine">GENUINE INTERACTION</span>
+                  )}
+                  <span className={`badge badge-status ${trackedReport.status.toLowerCase()}`}>
+                    Status: {trackedReport.status}
+                  </span>
+                </div>
+              </div>
+
+              {/* Progress Milestones Bar */}
+              <div className="tracking-milestones-grid">
+                <div style={{
+                  padding: '10px 8px', borderRadius: 'var(--radius-sm)',
+                  background: '#eff6ff', border: '1px solid #93c5fd', color: '#1d4ed8', fontSize: '0.76rem', fontWeight: 700
+                }}>
+                  1. Logged
+                </div>
+                <div style={{
+                  padding: '10px 8px', borderRadius: 'var(--radius-sm)',
+                  background: trackedReport.status !== 'Submitted' ? '#eff6ff' : '#f8fafc',
+                  border: trackedReport.status !== 'Submitted' ? '1px solid #93c5fd' : '1px solid var(--border-subtle)',
+                  color: trackedReport.status !== 'Submitted' ? '#1d4ed8' : 'var(--text-muted)',
+                  fontSize: '0.76rem', fontWeight: 700
+                }}>
+                  2. Verified
+                </div>
+                <div style={{
+                  padding: '10px 8px', borderRadius: 'var(--radius-sm)',
+                  background: trackedReport.status === 'Resolved' ? '#eff6ff' : (
+                    trackedReport.drain_id ? '#fffbeb' : '#f8fafc'
+                  ),
+                  border: trackedReport.status === 'Resolved' ? '1px solid #93c5fd' : (
+                    trackedReport.drain_id ? '1px solid #fde68a' : '1px solid var(--border-subtle)'
+                  ),
+                  color: trackedReport.status === 'Resolved' ? '#1d4ed8' : (
+                    trackedReport.drain_id ? '#b45309' : 'var(--text-muted)'
+                  ),
+                  fontSize: '0.76rem', fontWeight: 700
+                }}>
+                  3. Dispatched
+                </div>
+                <div style={{
+                  padding: '10px 8px', borderRadius: 'var(--radius-sm)',
+                  background: trackedReport.status === 'Resolved' ? '#f0fdf4' : '#f8fafc',
+                  border: trackedReport.status === 'Resolved' ? '1px solid #86efac' : '1px solid var(--border-subtle)',
+                  color: trackedReport.status === 'Resolved' ? '#15803d' : 'var(--text-muted)',
+                  fontSize: '0.76rem', fontWeight: 700
+                }}>
+                  4. Resolved
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 18, fontSize: '0.85rem' }}>
+                <div>
+                  <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>Category & Severity</span>
+                  <div style={{ fontWeight: 600, color: 'var(--text-main)', marginTop: 2 }}>
+                    {trackedReport.category} — <span className={`badge badge-prio-${trackedReport.severity.toLowerCase()}`}>{trackedReport.severity}</span>
+                  </div>
+                </div>
+
+                <div>
+                  <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>Associated Municipal Asset</span>
+                  <div style={{ fontWeight: 600, color: 'var(--text-main)', marginTop: 2 }}>
+                    {trackedReport.drain_code ? `${trackedReport.drain_code} (${trackedReport.drain_name})` : 'Awaiting asset mapping'}
+                  </div>
+                </div>
+
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>Location Landmark</span>
+                  <div style={{ fontWeight: 600, color: 'var(--text-main)', marginTop: 2 }}>
+                    {trackedReport.location_description}
+                  </div>
+                </div>
+
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>Description</span>
+                  <div style={{ color: 'var(--text-secondary)', marginTop: 2 }}>
+                    "{trackedReport.description}"
+                  </div>
+                </div>
+              </div>
+
+              {trackedReport.verification_notes && (
+                <div className="callout callout-info" style={{ marginTop: 12 }}>
+                  <ShieldCheck size={18} style={{ flexShrink: 0 }} />
+                  <div>
+                    <strong>Municipal Engineering Notes</strong>
+                    <div style={{ marginTop: 2 }}>{trackedReport.verification_notes}</div>
+                    {trackedReport.verified_by && (
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 4 }}>
+                        Reviewed by: {trackedReport.verified_by} • {trackedReport.verified_at ? new Date(trackedReport.verified_at).toLocaleString() : ''}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
